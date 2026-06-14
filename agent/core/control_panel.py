@@ -115,17 +115,57 @@ def create_app(orchestrator: Any, config: AgentConfig) -> Any:
                 continue
         return out
 
+    # ── Profiller (çoklu kanal) ──────────────────────────────
+    from dataclasses import asdict
+
+    @app.get("/api/profiles")
+    async def list_profiles() -> list[dict[str, Any]]:
+        return [asdict(p) for p in orchestrator.profiles.list()]
+
+    @app.post("/api/profiles")
+    async def create_profile(
+        payload: dict[str, Any], _: bool = Depends(require_auth)
+    ) -> dict[str, Any]:
+        return asdict(orchestrator.profiles.create(payload))
+
+    @app.put("/api/profiles/{profile_id}")
+    async def update_profile(
+        profile_id: str, payload: dict[str, Any], _: bool = Depends(require_auth)
+    ) -> dict[str, Any]:
+        p = orchestrator.profiles.update(profile_id, payload)
+        if not p:
+            raise HTTPException(status_code=404, detail="Profil bulunamadı")
+        return asdict(p)
+
+    @app.delete("/api/profiles/{profile_id}")
+    async def delete_profile(
+        profile_id: str, _: bool = Depends(require_auth)
+    ) -> dict[str, Any]:
+        if not orchestrator.profiles.delete(profile_id):
+            raise HTTPException(
+                status_code=400, detail="Silinemedi (varsayılan veya yok)"
+            )
+        return {"deleted": profile_id}
+
     # ── Manuel tetikleme ─────────────────────────────────────
     @app.post("/api/trigger")
     async def trigger(
         payload: Optional[dict[str, Any]] = None,
         _: bool = Depends(require_auth),
     ) -> dict[str, Any]:
-        topic = (payload or {}).get("topic") if payload else None
-        logger.info(f"🖱️ Panelden manuel tetikleme (konu={topic!r})")
+        payload = payload or {}
+        topic = payload.get("topic")
+        profile_id = payload.get("profile_id")
+        logger.info(
+            f"🖱️ Panelden manuel tetikleme (profil={profile_id!r}, konu={topic!r})"
+        )
         # Arka planda çalıştır — isteği bloke etme
-        asyncio.create_task(orchestrator.run_production_cycle(topic_override=topic))
-        return {"status": "triggered", "topic": topic}
+        asyncio.create_task(
+            orchestrator.run_production_cycle(
+                topic_override=topic, profile_id=profile_id
+            )
+        )
+        return {"status": "triggered", "topic": topic, "profile_id": profile_id}
 
     # ── Dashboard (HTML) ─────────────────────────────────────
     @app.get("/", response_class=HTMLResponse)
@@ -181,10 +221,25 @@ _DASHBOARD_HTML = """<!doctype html>
  <div class="card"><div class="stats" id="stats">Yükleniyor…</div></div>
  <div class="card">
    <h3>🎬 Manuel Üretim</h3>
-   <p class="muted">Boş bırakırsan AI konu üretir. Konu yazarsan o konuda üretir.</p>
-   <input id="topic" placeholder="Örn: Başarının 3 sırrı (opsiyonel)">
+   <p class="muted">Profil seç (kanal), konu yaz (boşsa AI üretir).</p>
+   <select id="profileSel"></select>
+   <input id="topic" placeholder="Konu (opsiyonel)" style="width:45%">
    <button onclick="trigger()">Üret</button>
    <span id="trigMsg" class="muted"></span>
+ </div>
+ <div class="card">
+   <h3>📺 Kanallar / Profiller</h3>
+   <table id="profiles"><thead><tr><th>Ad</th><th>Niche</th><th>Dil</th><th>Platformlar</th><th></th></tr></thead><tbody></tbody></table>
+   <h4 style="margin-top:16px">➕ Yeni Kanal</h4>
+   <input id="pName" placeholder="Kanal adı" style="width:30%">
+   <input id="pNiche" placeholder="niche (motivation)" style="width:20%">
+   <input id="pLang" placeholder="dil (tr)" style="width:12%">
+   <input id="pPlat" placeholder="platformlar: youtube,tiktok" style="width:30%">
+   <br><br>
+   <input id="pTags" placeholder="hashtagler: #shorts,#viral" style="width:45%">
+   <input id="pPool" placeholder="konu havuzu (virgüllü, opsiyonel)" style="width:30%">
+   <button onclick="addProfile()">Ekle</button>
+   <span id="pMsg" class="muted"></span>
  </div>
  <div class="card">
    <h3>📦 Üretilen Videolar</h3>
@@ -208,17 +263,48 @@ async function load(){
    `<td><a href="./api/videos/${x.task_id}/file" target="_blank"><button>İzle</button></a> `+
    `<button class="danger" onclick="del('${x.task_id}')">Sil</button></td>`;tb.appendChild(tr);});
 }
+async function loadProfiles(){
+ const ps=await (await fetch('./api/profiles')).json();
+ const sel=document.getElementById('profileSel');
+ sel.innerHTML=ps.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+ const tb=document.querySelector('#profiles tbody');tb.innerHTML='';
+ ps.forEach(p=>{const tr=document.createElement('tr');
+   const plat=(p.enabled_platforms||[]).join(', ')||'(ortak)';
+   tr.innerHTML=`<td>${p.name}</td><td>${p.niche}</td><td>${p.language}</td><td class="muted">${plat}</td>`+
+   `<td><button onclick="trigP('${p.id}')">Üret</button> `+
+   (p.id!=='default'?`<button class="danger" onclick="delP('${p.id}')">Sil</button>`:'')+`</td>`;
+   tb.appendChild(tr);});
+}
 async function trigger(){
  const t=document.getElementById('topic').value.trim();
+ const pid=document.getElementById('profileSel').value;
  const m=document.getElementById('trigMsg');m.textContent='Tetikleniyor…';
- const r=await fetch('./api/trigger',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic:t||null})});
+ const r=await fetch('./api/trigger',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic:t||null,profile_id:pid||null})});
  m.textContent=r.ok?'✅ Üretim başladı (loglardan takip et)':'❌ '+(await r.json()).detail;
+}
+async function trigP(id){
+ const r=await fetch('./api/trigger',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile_id:id})});
+ alert(r.ok?'✅ Üretim başladı':'❌ '+(await r.json()).detail);
+}
+async function addProfile(){
+ const body={name:pName.value.trim(),niche:pNiche.value.trim()||'motivation',language:pLang.value.trim()||'tr',
+   enabled_platforms:pPlat.value.split(',').map(x=>x.trim()).filter(Boolean),hashtags:pTags.value.trim(),topic_pool:pPool.value.trim()};
+ const m=document.getElementById('pMsg');
+ if(!body.name){m.textContent='Ad gerekli';return;}
+ const r=await fetch('./api/profiles',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+ if(r.ok){pName.value=pNiche.value=pLang.value=pPlat.value=pTags.value=pPool.value='';m.textContent='✅ Eklendi';loadProfiles();}
+ else{m.textContent='❌ '+(await r.json()).detail;}
+}
+async function delP(id){
+ if(!confirm('Kanal silinsin mi?'))return;
+ const r=await fetch('./api/profiles/'+id,{method:'DELETE'});
+ if(r.ok){loadProfiles();}else{alert('Silinemedi: '+(await r.json()).detail);}
 }
 async function del(id){
  if(!confirm(id+' silinsin mi?'))return;
  const r=await fetch('./api/videos/'+id,{method:'DELETE'});
  if(r.ok){load();}else{alert('Silinemedi: '+(await r.json()).detail);}
 }
-load();setInterval(load,15000);
+load();loadProfiles();setInterval(load,15000);
 </script>
 </body></html>"""

@@ -81,21 +81,39 @@ class SocialPublisher:
         )
 
     async def publish_to_all(
-        self, video_path: str, metadata: dict[str, str], topic: str
+        self,
+        video_path: str,
+        metadata: dict[str, str],
+        topic: str,
+        platforms: list[str] | None = None,
     ) -> list[PublishResult]:
         """
-        Videoyu tüm aktif platformlara paylaş.
+        Videoyu aktif platformlara paylaş.
 
         Args:
             video_path: Video dosyasının tam yolu
             metadata: {"title", "description", "hashtags"}
             topic: Video konusu
+            platforms: Verilirse yalnızca bu platformlara paylaşır
+                (profil bazlı hedefleme); None ise hepsine.
 
         Returns:
             list[PublishResult]: Her platform için paylaşım sonucu
         """
-        if not self._publishers:
-            logger.warning("⚠️ Hiçbir sosyal medya publisher'ı aktif değil")
+        # Profil platform filtresi
+        if platforms:
+            wanted = {p.strip().lower() for p in platforms}
+            publishers = {
+                k: v for k, v in self._publishers.items() if k in wanted
+            }
+        else:
+            publishers = dict(self._publishers)
+
+        if not publishers:
+            logger.warning(
+                "⚠️ Bu profil/yapılandırma için aktif publisher yok "
+                f"(istenen: {platforms or 'hepsi'})"
+            )
             return []
 
         # Video dosyası kontrolü
@@ -119,10 +137,10 @@ class SocialPublisher:
             language=self.config.content.language,
         )
 
-        # Tüm platformlara sırayla paylaş
+        # Seçili platformlara sırayla paylaş
         results: list[PublishResult] = []
 
-        for platform_name, publisher in self._publishers.items():
+        for platform_name, publisher in publishers.items():
             logger.info(f"📤 Paylaşım başlıyor: {platform_name}")
             result = await publisher.safe_publish(post)
             results.append(result)

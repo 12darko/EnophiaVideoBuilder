@@ -97,16 +97,23 @@ class ContentBrain:
 
     # ── Konu Üretimi ─────────────────────────────────────────
 
-    async def generate_topic(self) -> str:
-        """Niche'e uygun benzersiz bir video konusu üret."""
+    async def generate_topic(
+        self,
+        niche: Optional[str] = None,
+        language: Optional[str] = None,
+        topic_pool: Optional[str] = None,
+    ) -> str:
+        """Niche'e uygun benzersiz bir video konusu üret.
+
+        Profil override'ları verilmezse global config kullanılır.
+        """
+        niche = niche or self.content_config.niche
+        language = language or self.content_config.language
+        pool = topic_pool if topic_pool is not None else self.content_config.topic_pool
 
         # Eğer önceden tanımlı konu havuzu varsa, oradan seç
-        if self.content_config.topic_pool:
-            topics = [
-                t.strip()
-                for t in self.content_config.topic_pool.split(",")
-                if t.strip()
-            ]
+        if pool:
+            topics = [t.strip() for t in pool.split(",") if t.strip()]
             if topics:
                 topic = random.choice(topics)
                 logger.info(f"📝 Konu havuzundan seçildi: '{topic}'")
@@ -114,7 +121,7 @@ class ContentBrain:
 
         # LLM ile üret
         lang_map = {"tr": "Türkçe", "en": "English", "multi": "English"}
-        lang = lang_map.get(self.content_config.language, "Türkçe")
+        lang = lang_map.get(language, "Türkçe")
 
         niche_descriptions = {
             "motivation": "motivasyon, kişisel gelişim, başarı hikayeleri",
@@ -125,9 +132,7 @@ class ContentBrain:
             "health": "sağlık, fitness, beslenme",
             "comedy": "komedi, eğlence, günlük hayat",
         }
-        niche_desc = niche_descriptions.get(
-            self.content_config.niche, self.content_config.niche
-        )
+        niche_desc = niche_descriptions.get(niche, niche)
 
         # Son üretilen konuları prompt'a ekle → tekrarı engelle
         avoid_block = ""
@@ -159,12 +164,18 @@ Konu:"""
 
     # ── Senaryo Üretimi ──────────────────────────────────────
 
-    async def generate_script(self, topic: str) -> str:
+    async def generate_script(
+        self,
+        topic: str,
+        language: Optional[str] = None,
+        duration: Optional[int] = None,
+    ) -> str:
         """Video konusuna uygun senaryo üret."""
 
+        language = language or self.content_config.language
+        duration = duration or self.content_config.target_duration_seconds
         lang_map = {"tr": "Türkçe", "en": "English", "multi": "English"}
-        lang = lang_map.get(self.content_config.language, "Türkçe")
-        duration = self.content_config.target_duration_seconds
+        lang = lang_map.get(language, "Türkçe")
 
         prompt = f"""Sen profesyonel bir kısa video senaryo yazarısın.
 "{topic}" konusunda {lang} dilinde yaklaşık {duration} saniyelik bir 
@@ -191,12 +202,17 @@ Senaryo:"""
     # ── Sosyal Medya Metadata ────────────────────────────────
 
     async def generate_social_metadata(
-        self, topic: str, platform: str = "general"
+        self,
+        topic: str,
+        platform: str = "general",
+        language: Optional[str] = None,
+        hashtags: Optional[str] = None,
     ) -> dict[str, str]:
         """Sosyal medya başlığı, açıklaması ve hashtag'leri üret."""
 
+        language = language or self.content_config.language
         lang_map = {"tr": "Türkçe", "en": "English", "multi": "English"}
-        lang = lang_map.get(self.content_config.language, "Türkçe")
+        lang = lang_map.get(language, "Türkçe")
 
         prompt = f"""Sen bir sosyal medya uzmanısın. 
 "{topic}" konusundaki kısa video için {lang} dilinde sosyal medya paylaşım metni hazırla.
@@ -221,11 +237,10 @@ Aşağıdaki JSON formatında yanıt ver (başka hiçbir şey yazma):
             metadata = json.loads(response)
         except (json.JSONDecodeError, IndexError):
             logger.warning("⚠️ LLM JSON parse hatası, fallback metadata kullanılıyor")
-            # Yapılandırılmış varsayılan hashtag'ler (virgülleri boşluğa çevir)
+            # Profil hashtag'leri varsa onları, yoksa global varsayılanı kullan
+            source_tags = hashtags or self.social_config.default_hashtags
             fallback_tags = " ".join(
-                t.strip()
-                for t in self.social_config.default_hashtags.split(",")
-                if t.strip()
+                t.strip() for t in source_tags.split(",") if t.strip()
             )
             metadata = {
                 "title": topic[:100],

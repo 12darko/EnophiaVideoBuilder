@@ -17,6 +17,7 @@ from loguru import logger
 
 from config import AgentConfig
 from core.content_brain import ContentBrain
+from core.profiles import Profile, ProfileStore
 from core.self_healer import SelfHealer
 from core.social_publisher import SocialPublisher
 from core.video_client import VideoGeneratorClient
@@ -44,6 +45,10 @@ class Orchestrator:
         self.social_publisher = SocialPublisher(config)
         self.self_healer = SelfHealer(config)
 
+        # Çoklu kanal profilleri (varsayılan env'den seed edilir)
+        self.profiles = ProfileStore(config)
+        self.profiles.ensure_default()
+
         # İstatistikler
         self._stats = {
             "total_attempts": 0,
@@ -62,7 +67,9 @@ class Orchestrator:
         self._daily_count: int = 0
 
     async def run_production_cycle(
-        self, topic_override: Optional[str] = None
+        self,
+        topic_override: Optional[str] = None,
+        profile_id: Optional[str] = None,
     ) -> dict[str, Any]:
         """
         Tam bir video üretim döngüsü çalıştır.
@@ -70,10 +77,16 @@ class Orchestrator:
         Args:
             topic_override: Verilirse LLM konu üretmez, bu konu kullanılır
                 (panelden "şu konuda üret" komutu için).
+            profile_id: Verilirse o profilin (kanalın) ayarlarıyla üretir;
+                None ise varsayılan profil kullanılır.
 
         Returns:
             dict: Döngü sonuç raporu
         """
+        # Profili çöz
+        profile = (
+            self.profiles.get(profile_id) if profile_id else None
+        ) or self.profiles.ensure_default()
         if self._production_lock.locked():
             logger.warning(
                 "⚠️ Bir üretim döngüsü zaten çalışıyor, bu tetikleme atlanıyor"
@@ -108,22 +121,31 @@ class Orchestrator:
         async with self._production_lock:
             self._last_cycle_start = datetime.now()
             self._daily_count += 1
-            return await self._execute_cycle(topic_override)
+            return await self._execute_cycle(topic_override, profile)
 
     async def _execute_cycle(
-        self, topic_override: Optional[str] = None
+        self,
+        topic_override: Optional[str] = None,
+        profile: Optional[Profile] = None,
     ) -> dict[str, Any]:
         """Üretim döngüsünün iç implementasyonu."""
+        if profile is None:
+            profile = self.profiles.ensure_default()
         cycle_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         self._stats["total_attempts"] += 1
 
         logger.info(f"{'='*60}")
-        logger.info(f"🎬 Üretim döngüsü başladı: {cycle_id}")
+        logger.info(
+            f"🎬 Üretim döngüsü başladı: {cycle_id} | "
+            f"Profil: {profile.name} ({profile.niche}/{profile.language})"
+        )
         logger.info(f"{'='*60}")
 
         result = {
             "cycle_id": cycle_id,
             "status": "unknown",
+            "profile_id": profile.id,
+            "profile_name": profile.name,
             "topic": None,
             "video_task_id": None,
             "video_path": None,
@@ -157,6 +179,9 @@ class Orchestrator:
                 topic = await self._with_healing(
                     self.content_brain.generate_topic,
                     heal_id=f"{cycle_id}_topic",
+                    niche=profile.niche,
+                    language=profile.language,
+                    topic_pool=profile.topic_pool,
                 )
             result["topic"] = topic
             logger.info(f"✅ Konu: '{topic}'")
@@ -167,6 +192,8 @@ class Orchestrator:
                 self.content_brain.generate_script,
                 heal_id=f"{cycle_id}_script",
                 topic=topic,
+                language=profile.language,
+                duration=profile.target_duration,
             )
             logger.info(f"✅ Senaryo: {len(script)} karakter")
 
@@ -214,6 +241,8 @@ class Orchestrator:
                 self.content_brain.generate_social_metadata,
                 heal_id=f"{cycle_id}_metadata",
                 topic=topic,
+                language=profile.language,
+                hashtags=profile.hashtags,
             )
 
             # ── Adım 5: Sosyal medyaya paylaş ───────────────
@@ -235,6 +264,7 @@ class Orchestrator:
                     video_path=video_local_path,
                     metadata=metadata,
                     topic=topic,
+                    platforms=profile.enabled_platforms or None,
                 )
                 result["publish_results"] = [
                     {
