@@ -79,9 +79,14 @@ services:
     container_name: video-agent
     restart: unless-stopped
 
-    # Web kontrol paneli (durum + video yönetimi + manuel tetikleme)
+    # Web kontrol paneli (durum + video yönetimi + manuel tetikleme).
+    # expose: yalnızca iç Docker ağına açar (internete DEĞİL).
     expose:
       - "8090"
+    # Hermes gibi HOST üzerinde çalışan bir ajanın panele erişmesi için
+    # aşağıdaki satırı aç (sadece 127.0.0.1 — internete kapalı, güvenli):
+    # ports:
+    #   - "127.0.0.1:8090:8090"
 
     depends_on:
       video-generator:

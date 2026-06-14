@@ -139,6 +139,15 @@ docker compose up -d --build
 
 Deploy sonrası `https://video.domain.com` adresine gidip sol panelden Pexels API key ve LLM ayarlarını girin.
 
+> 💡 **Kontrol paneli:** Agent'ın kendi web paneli `:8090`'da çalışır (durum, video
+> listele/izle/sil, "şu konuda üret" tetikleme). Erişim opsiyoneldir — detay
+> [DOMAIN_KURULUM.md](DOMAIN_KURULUM.md) §6.5.
+>
+> 🧠 **Hermes ile doğal dil kontrolü:** Sunucuda
+> [Hermes Agent](https://github.com/nousresearch/hermes-agent) kurarsan, ona Türkçe
+> "yeni video üret ve at" diyerek bu sistemi sürebilirsin —
+> [HERMES_ENTEGRASYON.md](HERMES_ENTEGRASYON.md).
+
 ---
 
 ## ⚙️ Yapılandırma
