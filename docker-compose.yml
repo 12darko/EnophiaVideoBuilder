@@ -32,11 +32,18 @@ services:
 
       # ── API anahtarları (env → config.toml, redeploy'da KALICI) ──
       # Bunları doldurursan UI'dan girmene gerek yok ve asla silinmez.
+      # Video kaynakları:
       - PEXELS_API_KEY=${PEXELS_API_KEY:-}
       - PIXABAY_API_KEY=${PIXABAY_API_KEY:-}
+      - COVERR_API_KEY=${COVERR_API_KEY:-}
+      - VIDEO_SOURCE=${VIDEO_SOURCE:-pexels}
+      # LLM sağlayıcılar (hangisini doldurursan o kullanılır):
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - GEMINI_MODEL_NAME=${GEMINI_MODEL_NAME:-gemini-2.0-flash}
-      - VIDEO_SOURCE=${VIDEO_SOURCE:-pexels}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - GROQ_MODEL_NAME=${GROQ_MODEL_NAME:-llama-3.3-70b-versatile}
+      # Birden fazla LLM key'i varsa hangisi aktif olsun (gemini/groq/...):
+      - MPT_LLM_PROVIDER=${MPT_LLM_PROVIDER:-}
 
       # MPT UI'da gösterilecek "Agent Paneli" linki (opsiyonel)
       - PANEL_URL=${PANEL_URL:-}
