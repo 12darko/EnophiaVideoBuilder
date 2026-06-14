@@ -30,6 +30,17 @@ services:
       - PYTHONUNBUFFERED=1
       - TZ=Europe/Istanbul
 
+      # ── API anahtarları (env → config.toml, redeploy'da KALICI) ──
+      # Bunları doldurursan UI'dan girmene gerek yok ve asla silinmez.
+      - PEXELS_API_KEY=${PEXELS_API_KEY:-}
+      - PIXABAY_API_KEY=${PIXABAY_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL_NAME=${GEMINI_MODEL_NAME:-gemini-2.0-flash}
+      - VIDEO_SOURCE=${VIDEO_SOURCE:-pexels}
+
+      # MPT UI'da gösterilecek "Agent Paneli" linki (opsiyonel)
+      - PANEL_URL=${PANEL_URL:-}
+
     volumes:
       # ── Kalıcı config ──
       - vg_config:/MoneyPrinterTurbo/config_data

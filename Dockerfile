@@ -58,7 +58,8 @@ RUN git clone --depth 1 --branch "${MPT_REF}" "${MPT_REPO}" /tmp/mpt 2>/dev/null
 
 # ── Python deps (MPT'nin kendi requirements'ı) ──────────────
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir toml   # env→config.toml enjeksiyonu için garanti
 
 # ── Create directories for volumes ──────────────────────────
 RUN mkdir -p /MoneyPrinterTurbo/storage \
@@ -74,9 +75,17 @@ RUN if [ ! -f config.toml ] && [ -f config.example.toml ]; then \
 # ── Supervisord config ──────────────────────────────────────
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# ── Entrypoint (config.toml kalıcılığı) ─────────────────────
+# ── Entrypoint + env→config enjeksiyon scripti ──────────────
 COPY entrypoint.sh /entrypoint.sh
+COPY inject_config.py /inject_config.py
 RUN chmod +x /entrypoint.sh
+
+# ── MPT UI'ya "Agent Paneli" linki ekle (PANEL_URL env'i ile) ─
+COPY panel_link_snippet.py /tmp/panel_link_snippet.py
+RUN if [ -f /MoneyPrinterTurbo/webui/Main.py ]; then \
+        cat /tmp/panel_link_snippet.py >> /MoneyPrinterTurbo/webui/Main.py; \
+        echo "Panel linki Main.py'ye eklendi"; \
+    fi
 
 # ── Expose ports ─────────────────────────────────────────────
 # 8501 = Streamlit WebUI

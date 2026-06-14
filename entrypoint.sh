@@ -35,5 +35,8 @@ rm -f "$CONFIG_LINK"
 ln -sf "$PERSIST_DIR/config.toml" "$CONFIG_LINK"
 echo "[entrypoint] config.toml -> $PERSIST_DIR/config.toml (kalıcı)"
 
+# Coolify env anahtarlarını config.toml'a işle (volume kaybolsa bile kalıcı)
+python /inject_config.py || echo "[entrypoint] env injection atlandi"
+
 # supervisord'u devral
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
