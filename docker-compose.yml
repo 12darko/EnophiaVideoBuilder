@@ -1,0 +1,244 @@
+# ============================================================
+# Otonom Video Fabrikası — Coolify Docker Compose
+# ============================================================
+# İki katmanlı mimari:
+#   1. video-generator: MoneyPrinterTurbo (Streamlit + FastAPI)
+#   2. ai-agent: Otonom yapay zeka ajanı (7/24)
+#
+# Coolify arayüzünde "Docker Compose" olarak deploy edin.
+# ============================================================
+
+services:
+  # ─── Katman 1: Video Üretim Motoru ────────────────────────
+  video-generator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: moneyprinterturbo
+    restart: unless-stopped
+
+    # Coolify Traefik üzerinden bu porta yönlendirme yapar
+    expose:
+      - "8501"
+      - "8080"
+
+    environment:
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+      - PYTHONPATH=/MoneyPrinterTurbo
+      - PYTHONUNBUFFERED=1
+      - TZ=Europe/Istanbul
+
+    volumes:
+      # ── Kalıcı config ──
+      - vg_config:/MoneyPrinterTurbo/config_data
+
+      # ── Üretilen videolar (agent ile paylaşılan) ──
+      - shared_output:/MoneyPrinterTurbo/output
+
+      # ── İndirilen stok videolar ──
+      - vg_storage:/MoneyPrinterTurbo/storage
+
+      # ── Müzik dosyaları ──
+      - vg_songs:/MoneyPrinterTurbo/resource/songs
+
+      # ── Stok video kaynakları ──
+      - vg_videos:/MoneyPrinterTurbo/resource/videos
+
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+          cpus: "3.0"
+        reservations:
+          memory: 1G
+          cpus: "1.0"
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 3
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+    networks:
+      - factory-net
+
+  # ─── Katman 2: Otonom AI Agent ────────────────────────────
+  ai-agent:
+    build:
+      context: ./agent
+      dockerfile: Dockerfile
+    container_name: video-agent
+    restart: unless-stopped
+
+    # Agent'ın dış dünyaya port açmasına gerek yok
+    # Tüm iletişim Docker internal network üzerinden
+
+    depends_on:
+      video-generator:
+        condition: service_healthy
+      docker-socket-proxy:
+        condition: service_started
+
+    environment:
+      # ── Video Generator bağlantısı ──
+      - VG_API_BASE_URL=http://video-generator:8080
+      - VG_HEALTH_CHECK_URL=http://video-generator:8501/_stcore/health
+      - VG_API_TIMEOUT=600
+      - VG_DEFAULT_ASPECT=9:16
+      - VG_DEFAULT_VOICE=tr-TR-EmelNeural
+      - VG_DEFAULT_VIDEO_SOURCE=pexels
+
+      # ── LLM Ayarları ──
+      - LLM_PROVIDER=${LLM_PROVIDER:-gemini}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_MODEL_NAME=${LLM_MODEL_NAME:-gemini-2.0-flash}
+      - LLM_OPENAI_API_KEY=${LLM_OPENAI_API_KEY:-}
+      - LLM_OPENAI_BASE_URL=${LLM_OPENAI_BASE_URL:-https://api.openai.com/v1}
+      - LLM_OPENAI_MODEL_NAME=${LLM_OPENAI_MODEL_NAME:-gpt-4o-mini}
+
+      # ── Zamanlama ──
+      - SCHEDULER_DAILY_VIDEO_COUNT=${SCHEDULER_DAILY_VIDEO_COUNT:-3}
+      - SCHEDULER_PRODUCTION_HOURS=${SCHEDULER_PRODUCTION_HOURS:-9,14,19}
+      - SCHEDULER_POST_DELAY_MINUTES=${SCHEDULER_POST_DELAY_MINUTES:-5}
+      - SCHEDULER_MIN_INTERVAL_MINUTES=${SCHEDULER_MIN_INTERVAL_MINUTES:-60}
+
+      # ── İçerik Stratejisi ──
+      - CONTENT_LANGUAGE=${CONTENT_LANGUAGE:-tr}
+      - CONTENT_NICHE=${CONTENT_NICHE:-motivation}
+      - CONTENT_TOPIC_POOL=${CONTENT_TOPIC_POOL:-}
+      - CONTENT_TARGET_DURATION_SECONDS=${CONTENT_TARGET_DURATION_SECONDS:-60}
+
+      # ── Sosyal Medya ──
+      - SOCIAL_ENABLED_PLATFORMS=${SOCIAL_ENABLED_PLATFORMS:-tiktok,instagram,youtube}
+      - SOCIAL_PUBLISH_STRATEGY=${SOCIAL_PUBLISH_STRATEGY:-hybrid}
+      - SOCIAL_TIKTOK_SESSION_COOKIE=${SOCIAL_TIKTOK_SESSION_COOKIE:-}
+      - SOCIAL_INSTAGRAM_USERNAME=${SOCIAL_INSTAGRAM_USERNAME:-}
+      - SOCIAL_INSTAGRAM_PASSWORD=${SOCIAL_INSTAGRAM_PASSWORD:-}
+      - SOCIAL_YOUTUBE_CLIENT_ID=${SOCIAL_YOUTUBE_CLIENT_ID:-}
+      - SOCIAL_YOUTUBE_CLIENT_SECRET=${SOCIAL_YOUTUBE_CLIENT_SECRET:-}
+      - SOCIAL_YOUTUBE_REFRESH_TOKEN=${SOCIAL_YOUTUBE_REFRESH_TOKEN:-}
+      - SOCIAL_DEFAULT_HASHTAGS=${SOCIAL_DEFAULT_HASHTAGS:-#shorts,#viral,#ai,#fyp}
+
+      # ── Self-Healing ──
+      - HEAL_MAX_RETRIES=${HEAL_MAX_RETRIES:-5}
+      - HEAL_INITIAL_BACKOFF_SECONDS=${HEAL_INITIAL_BACKOFF_SECONDS:-30}
+      - HEAL_MAX_BACKOFF_SECONDS=${HEAL_MAX_BACKOFF_SECONDS:-600}
+      - HEAL_OOM_COOLDOWN_SECONDS=${HEAL_OOM_COOLDOWN_SECONDS:-300}
+
+      # ── Bildirimler ──
+      - NOTIFY_ENABLED=${NOTIFY_ENABLED:-false}
+      - NOTIFY_TELEGRAM_BOT_TOKEN=${NOTIFY_TELEGRAM_BOT_TOKEN:-}
+      - NOTIFY_TELEGRAM_CHAT_ID=${NOTIFY_TELEGRAM_CHAT_ID:-}
+
+      # ── Self-Healing için Docker log erişimi (proxy üzerinden) ──
+      # Doğrudan docker.sock mount edilmez; sadece okuma yetkili proxy.
+      - DOCKER_HOST=tcp://docker-socket-proxy:2375
+      - HEAL_TARGET_CONTAINER_NAME=${HEAL_TARGET_CONTAINER_NAME:-moneyprinterturbo}
+
+      # ── Agent Genel ──
+      - AGENT_HEARTBEAT_INTERVAL_SECONDS=30
+      - AGENT_RUN_ON_START=${AGENT_RUN_ON_START:-false}
+      - TZ=Europe/Istanbul
+      - PYTHONUNBUFFERED=1
+
+    volumes:
+      # ── Agent kalıcı verileri ──
+      - agent_data:/agent/data
+
+      # ── Agent logları ──
+      - agent_logs:/agent/logs
+
+      # ── Paylaşılan output (video-generator ile ortak) ──
+      - shared_output:/shared_output:ro
+
+      # NOT: Docker socket artık doğrudan mount EDİLMEZ.
+      # Log okuma, salt-okunur docker-socket-proxy üzerinden yapılır.
+
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+          cpus: "2.0"
+        reservations:
+          memory: 512M
+          cpus: "0.5"
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; exit(0 if os.path.exists('/agent/data/heartbeat') else 1)"]
+      interval: 60s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    networks:
+      - factory-net
+
+  # ─── Katman 3: Docker Socket Proxy (güvenlik) ─────────────
+  # ai-agent'a host docker.sock'u doğrudan vermek yerine sadece
+  # salt-okunur container/log erişimi sağlar. POST kapalı →
+  # container oluşturma/durdurma/exec engellenir.
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.3
+    container_name: video-docker-proxy
+    restart: unless-stopped
+    environment:
+      - CONTAINERS=1   # /containers (GET) — log okuma için gerekli
+      - IMAGES=0
+      - NETWORKS=0
+      - VOLUMES=0
+      - SERVICES=0
+      - TASKS=0
+      - POST=0         # tüm yazma/mutasyon işlemleri yasak
+      - EXEC=0
+      - INFO=0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: "0.25"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+    networks:
+      - factory-net
+
+# ── Shared Network ──────────────────────────────────────────
+networks:
+  factory-net:
+    driver: bridge
+
+# ── Named Volumes ───────────────────────────────────────────
+volumes:
+  vg_config:
+    driver: local
+  shared_output:
+    driver: local
+  vg_storage:
+    driver: local
+  vg_songs:
+    driver: local
+  vg_videos:
+    driver: local
+  agent_data:
+    driver: local
+  agent_logs:
+    driver: local

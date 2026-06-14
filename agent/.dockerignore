@@ -1,0 +1,9 @@
+# ai-agent build context'i (./agent)
+__pycache__/
+*.py[cod]
+data/
+logs/
+*.log
+*.log.gz
+.env
+.env.*

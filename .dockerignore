@@ -1,0 +1,24 @@
+# video-generator build context'i için (kök Dockerfile).
+# MPT build sırasında klonlandığı için bu dosyaların imaja
+# girmesine gerek yok — yalnızca supervisord.conf kullanılır.
+
+.git
+.idea
+.vscode
+
+# Sırlar — asla build context'ine girmesin
+.env
+.env.*
+!.env.example
+
+# Agent kendi imajında (./agent) build edilir
+agent/
+
+# Dokümanlar ve runtime çıktıları
+*.md
+agent/data/
+agent/logs/
+output/
+storage/
+__pycache__/
+*.py[cod]

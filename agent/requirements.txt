@@ -1,0 +1,50 @@
+# ============================================================
+# AI Agent — Python Dependencies
+# ============================================================
+# Üst sınırlar (<next-major) otomatik deploy'un beklenmedik
+# breaking-change sürümleriyle bozulmasını engeller.
+# ============================================================
+
+# ── LLM / AI ────────────────────────────────────────────────
+google-generativeai>=0.8.0,<1.0.0
+openai>=1.30.0,<2.0.0
+
+# ── HTTP Client ─────────────────────────────────────────────
+httpx>=0.27.0,<1.0.0
+requests>=2.32.0,<3.0.0
+
+# ── Browser Automation ──────────────────────────────────────
+# browser-use ve langchain API'leri hızlı değişir → dar sınır
+browser-use>=0.1.40,<0.2.0
+playwright>=1.44.0,<2.0.0
+# browser-use'un LLM beyni (tiktok.py / instagram.py içinde import edilir)
+langchain-google-genai>=1.0.0,<3.0.0
+
+# ── Scheduling ──────────────────────────────────────────────
+apscheduler>=3.10.4,<4.0.0
+
+# ── Retry / Resilience ──────────────────────────────────────
+tenacity>=8.3.0,<9.0.0
+
+# ── Configuration ───────────────────────────────────────────
+pydantic>=2.7.0,<3.0.0
+pydantic-settings>=2.3.0,<3.0.0
+python-dotenv>=1.0.0,<2.0.0
+
+# ── Logging ─────────────────────────────────────────────────
+loguru>=0.7.2,<0.8.0
+
+# ── Docker SDK (log reading via socket-proxy) ───────────────
+docker>=7.1.0,<8.0.0
+
+# ── Notifications ───────────────────────────────────────────
+python-telegram-bot>=21.3,<22.0
+
+# ── Social Media APIs ───────────────────────────────────────
+google-api-python-client>=2.130.0,<3.0.0   # YouTube Data API
+google-auth-oauthlib>=1.2.0,<2.0.0          # YouTube OAuth
+
+# ── Utilities ───────────────────────────────────────────────
+python-dateutil>=2.9.0,<3.0.0
+aiofiles>=23.2.0,<25.0.0
+jinja2>=3.1.4,<4.0.0

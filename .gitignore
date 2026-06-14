@@ -1,0 +1,29 @@
+# ── Ortam değişkenleri (ASLA commit etme) ──────────────────
+.env
+.env.*
+!.env.example
+
+# ── Python ─────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# ── Agent runtime verileri ─────────────────────────────────
+agent/data/
+agent/logs/
+*.log
+*.log.gz
+
+# ── MoneyPrinterTurbo runtime ──────────────────────────────
+config.toml
+output/
+storage/
+
+# ── IDE / OS ───────────────────────────────────────────────
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
