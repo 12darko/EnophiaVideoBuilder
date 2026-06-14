@@ -83,12 +83,8 @@ COPY entrypoint.sh /entrypoint.sh
 COPY inject_config.py /inject_config.py
 RUN chmod +x /entrypoint.sh
 
-# ── MPT UI'ya "Agent Paneli" linki ekle (PANEL_URL env'i ile) ─
-COPY panel_link_snippet.py /tmp/panel_link_snippet.py
-RUN if [ -f /MoneyPrinterTurbo/webui/Main.py ]; then \
-        cat /tmp/panel_link_snippet.py >> /MoneyPrinterTurbo/webui/Main.py; \
-        echo "Panel linki Main.py'ye eklendi"; \
-    fi
+# NOT: MPT Main.py'ye panel-link enjeksiyonu KALDIRILDI — 3. parti
+# Streamlit UI'ını bozma riski vardı. Panele kendi URL'siyle erişilir.
 
 # ── Expose ports ─────────────────────────────────────────────
 # 8501 = Streamlit WebUI
