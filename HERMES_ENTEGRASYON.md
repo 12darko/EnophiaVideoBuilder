@@ -44,7 +44,7 @@ Detay: https://github.com/nousresearch/hermes-agent
 ## 3. Panele Erişim — 3 Senaryo (port derdi burada çözülür)
 
 ### A) Hermes host'ta → panel host-local (ÖNERİLEN, ekstra domain YOK)
-`docker-compose.yml`'de ai-agent altındaki satırı aç:
+`docker-compose.yaml`'de ai-agent altındaki satırı aç:
 ```yaml
     ports:
       - "127.0.0.1:8090:8090"   # sadece host, internete kapalı

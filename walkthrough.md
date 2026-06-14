@@ -51,7 +51,7 @@ graph TB
 |---|---|---|
 | [Dockerfile](file:///d:/Gemini/Projects/AutomationVideo/Dockerfile) | 3.7 KB | Video generator imajı (Python + FFmpeg + supervisord) |
 | [supervisord.conf](file:///d:/Gemini/Projects/AutomationVideo/supervisord.conf) | 1.5 KB | Streamlit + FastAPI process yönetimi |
-| [docker-compose.yml](file:///d:/Gemini/Projects/AutomationVideo/docker-compose.yml) | 6.6 KB | Çift katmanlı Coolify uyumlu compose |
+| [docker-compose.yaml](file:///d:/Gemini/Projects/AutomationVideo/docker-compose.yaml) | 6.6 KB | Çift katmanlı Coolify uyumlu compose |
 | [.env.example](file:///d:/Gemini/Projects/AutomationVideo/.env.example) | 6.8 KB | Tüm ortam değişkenleri şablonu |
 
 ### Agent Modülleri
@@ -304,7 +304,7 @@ docker logs -f moneyprinterturbo --tail 100
 | 502 Bad Gateway | FQDN'de `:8501` portunu eklediğinizden emin olun |
 | Agent "Video generator not ready" | `video-generator` container loglarını kontrol edin |
 | Sosyal medya paylaşımı başarısız | Platform credentials'larını kontrol edin |
-| OOM ile container kapanıyor | `docker-compose.yml`'de memory limit'i azaltın |
+| OOM ile container kapanıyor | `docker-compose.yaml`'de memory limit'i azaltın |
 
 ---
 

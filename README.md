@@ -59,7 +59,7 @@ Bu sistem iki katmanlı bir mimariyle çalışır:
 ```
 ├── Dockerfile                    # Video generator imajı (Python + FFmpeg + supervisord)
 ├── supervisord.conf              # Streamlit + FastAPI process yönetimi
-├── docker-compose.yml            # Çift katmanlı Coolify uyumlu compose
+├── docker-compose.yaml            # Çift katmanlı Coolify uyumlu compose
 ├── .env.example                  # Ortam değişkenleri şablonu
 ├── README.md                     # Bu dosya
 │
