@@ -45,6 +45,10 @@ WORKDIR /agent
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+# Emoji/UTF-8 logların container stdout'ta düzgün akması için
+ENV PYTHONIOENCODING=utf-8
+ENV PYTHONUTF8=1
+ENV LANG=C.UTF-8
 
 # ── Python deps ─────────────────────────────────────────────
 COPY requirements.txt .

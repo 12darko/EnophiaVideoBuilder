@@ -186,15 +186,26 @@ async def run_panel(orchestrator: Any, config: AgentConfig) -> None:
         logger.warning("⚠️ uvicorn/fastapi kurulu değil, panel başlatılamadı")
         return
 
-    app = create_app(orchestrator, config)
+    try:
+        app = create_app(orchestrator, config)
+    except Exception as e:
+        logger.error(f"❌ Kontrol paneli oluşturulamadı: {e!r}")
+        return
+
     port = config.control_panel.port
-    auth_note = "🔒 auth aktif" if config.control_panel.password else "⚠️ salt-okunur (şifre yok)"
-    logger.info(f"🌐 Kontrol paneli başlıyor → :{port} ({auth_note})")
+    auth_note = (
+        "🔒 auth aktif" if config.control_panel.password
+        else "⚠️ salt-okunur (PANEL_PASSWORD yok)"
+    )
+    logger.info(f"🌐 Kontrol paneli başlıyor → http://0.0.0.0:{port} ({auth_note})")
 
     server = uvicorn.Server(
-        uvicorn.Config(app, host="0.0.0.0", port=port, log_level="warning")
+        uvicorn.Config(app, host="0.0.0.0", port=port, log_level="info")
     )
-    await server.serve()
+    try:
+        await server.serve()
+    except Exception as e:
+        logger.error(f"❌ Kontrol paneli sunucusu durdu: {e!r}")
 
 
 _DASHBOARD_HTML = """<!doctype html>

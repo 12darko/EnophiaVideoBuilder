@@ -48,6 +48,9 @@ WORKDIR /MoneyPrinterTurbo
 ENV PYTHONPATH="/MoneyPrinterTurbo"
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONIOENCODING=utf-8
+ENV PYTHONUTF8=1
+ENV LANG=C.UTF-8
 
 # ── MoneyPrinterTurbo'yu klonla ─────────────────────────────
 RUN git clone --depth 1 --branch "${MPT_REF}" "${MPT_REPO}" /tmp/mpt 2>/dev/null \

@@ -46,6 +46,27 @@ logger.add(
 )
 
 
+def _write_heartbeat(config: object) -> None:
+    """Anında bir heartbeat yaz — healthcheck baştan geçsin (restart loop önle)."""
+    try:
+        hb = os.path.join(config.data_dir, "heartbeat")  # type: ignore[attr-defined]
+        os.makedirs(os.path.dirname(hb), exist_ok=True)
+        with open(hb, "w") as f:
+            f.write(datetime.now().isoformat())
+        logger.info(f"💓 İlk heartbeat yazıldı: {hb}")
+    except Exception as e:
+        logger.warning(f"⚠️ İlk heartbeat yazılamadı: {e}")
+
+
+def _panel_done(task: "asyncio.Task[None]") -> None:
+    """Panel task'ı beklenmedik durursa hatayı görünür şekilde logla."""
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        logger.error(f"❌ Kontrol paneli beklenmedik şekilde durdu: {exc!r}")
+
+
 async def main() -> None:
     """Ana async giriş noktası."""
 
@@ -91,16 +112,31 @@ async def main() -> None:
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT, _handle_signal)
 
-    # ── Video generator'ın hazır olmasını bekle ──────────────
+    # ── Hemen heartbeat yaz (healthcheck baştan geçsin) ──────
+    _write_heartbeat(config)
+
+    # ── Kontrol panelini ERKEN başlat (web arayüzü) ──────────
+    # Video generator beklemesinden ÖNCE başlatılır ki panel (8090)
+    # anında erişilebilir olsun, health wait'i beklemesin.
+    from core.control_panel import run_panel
+
+    panel_task = asyncio.create_task(run_panel(orchestrator, config))
+    panel_task.add_done_callback(_panel_done)
+
+    # ── Scheduler'ı ERKEN başlat (heartbeat + zamanlamalar) ──
+    scheduler.start()
+    for job in scheduler.get_next_run_times():
+        logger.info(f"📅 {job['name']}: sonraki çalışma → {job['next_run']}")
+
+    # ── Video generator'ın hazır olmasını bekle (bilgi amaçlı) ─
     logger.info("⏳ Video generator servisinin hazır olması bekleniyor...")
     vg_ready = await orchestrator.video_client.wait_until_healthy(
         max_wait=300, interval=10
     )
-
     if not vg_ready:
         logger.error(
             "❌ Video generator 5 dakika içinde hazır olmadı! "
-            "Agent başlatılıyor ama video üretimi başarısız olabilir."
+            "Scheduler çalışıyor; üretim tetiklendiğinde tekrar denenecek."
         )
     else:
         logger.info("✅ Video generator hazır!")
@@ -113,21 +149,6 @@ async def main() -> None:
             await orchestrator.run_production_cycle()
         except Exception as e:
             logger.error(f"❌ İlk test üretimi hatası: {e}")
-
-    # ── Kontrol panelini başlat (web arayüzü) ────────────────
-    from core.control_panel import run_panel
-
-    panel_task = asyncio.create_task(run_panel(orchestrator, config))
-
-    # ── Scheduler'ı başlat ───────────────────────────────────
-    scheduler.start()
-
-    # Yaklaşan schedule'ları logla
-    upcoming = scheduler.get_next_run_times()
-    for job in upcoming:
-        logger.info(
-            f"📅 {job['name']}: sonraki çalışma → {job['next_run']}"
-        )
 
     logger.info("=" * 60)
     logger.info("🟢 Agent aktif — 7/24 çalışmaya hazır!")
