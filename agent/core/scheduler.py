@@ -93,6 +93,15 @@ class AgentScheduler:
             replace_existing=True,
         )
 
+        # ── Günlük video depolama temizliği (her gün 04:30) ──
+        self.scheduler.add_job(
+            self._cleanup_videos,
+            trigger=CronTrigger(hour=4, minute=30),
+            id="video_cleanup",
+            name="Video depolama temizliği",
+            replace_existing=True,
+        )
+
         logger.info(
             f"📅 Toplam {len(self.scheduler.get_jobs())} schedule kuruldu. "
             f"Video saatleri: {production_hours}"
@@ -113,6 +122,18 @@ class AgentScheduler:
             await self._video_callback()
         except Exception as e:
             logger.error(f"❌ Zamanlanmış video üretimi hatası: {e}")
+
+    async def _cleanup_videos(self) -> None:
+        """Eski/fazla videoları temizle (retention + boyut limiti)."""
+        import asyncio
+
+        from core.storage_manager import StorageManager
+
+        try:
+            manager = StorageManager(self.config)
+            await asyncio.to_thread(manager.cleanup)
+        except Exception as e:
+            logger.error(f"❌ Video depolama temizliği hatası: {e}")
 
     async def _update_heartbeat(self) -> None:
         """Heartbeat dosyasını güncelle (health check için)."""

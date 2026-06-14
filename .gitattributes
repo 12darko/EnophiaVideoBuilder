@@ -1,0 +1,6 @@
+# Shell scriptleri her zaman LF olmalı (Linux container'da çalışır)
+*.sh text eol=lf
+entrypoint.sh text eol=lf
+
+# Diğer metin dosyaları otomatik
+* text=auto

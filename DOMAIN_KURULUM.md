@@ -93,6 +93,27 @@ API anahtarlarını harcayabilir**. Coolify Basic Auth ekle:
 
 ---
 
+## 6.5 🎛️ Kontrol Paneli (opsiyonel ama önerilir)
+
+Agent'ın bir web paneli var (`:8090`): durum izleme, üretilen videoları
+listele/izle/sil ve **"şu konuda üret"** manuel tetikleme.
+
+1. **Şifre koy** (zorunlu — yoksa panel salt-okunur):
+   ```env
+   PANEL_PASSWORD=guclu-bir-sifre
+   ```
+2. Panele domain ver: **ai-agent** servisine FQDN ekle:
+   ```
+   https://panel.senindomain.com:8090
+   ```
+   (DNS'e `panel` için de A kaydı ekle.)
+3. 🔒 Coolify Basic Auth da ekle (çift koruma).
+
+> Panel domaine açılacaksa **mutlaka `PANEL_PASSWORD` + Basic Auth** olsun —
+> bu panel video üretimi tetikleyebilir ve dosya silebilir.
+
+---
+
 ## 7. Doğrulama
 
 ```bash

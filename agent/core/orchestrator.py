@@ -61,9 +61,15 @@ class Orchestrator:
         self._daily_count_date: Optional[str] = None
         self._daily_count: int = 0
 
-    async def run_production_cycle(self) -> dict[str, Any]:
+    async def run_production_cycle(
+        self, topic_override: Optional[str] = None
+    ) -> dict[str, Any]:
         """
         Tam bir video üretim döngüsü çalıştır.
+
+        Args:
+            topic_override: Verilirse LLM konu üretmez, bu konu kullanılır
+                (panelden "şu konuda üret" komutu için).
 
         Returns:
             dict: Döngü sonuç raporu
@@ -102,9 +108,11 @@ class Orchestrator:
         async with self._production_lock:
             self._last_cycle_start = datetime.now()
             self._daily_count += 1
-            return await self._execute_cycle()
+            return await self._execute_cycle(topic_override)
 
-    async def _execute_cycle(self) -> dict[str, Any]:
+    async def _execute_cycle(
+        self, topic_override: Optional[str] = None
+    ) -> dict[str, Any]:
         """Üretim döngüsünün iç implementasyonu."""
         cycle_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         self._stats["total_attempts"] += 1
@@ -140,12 +148,16 @@ class Orchestrator:
                         "Video generator 180s içinde hazır olmadı"
                     )
 
-            # ── Adım 1: Konu üret ───────────────────────────
-            logger.info("📝 Adım 1/5: Konu üretiliyor...")
-            topic = await self._with_healing(
-                self.content_brain.generate_topic,
-                heal_id=f"{cycle_id}_topic",
-            )
+            # ── Adım 1: Konu üret (veya manuel konu) ────────
+            if topic_override:
+                topic = topic_override.strip()
+                logger.info(f"📝 Adım 1/5: Manuel konu kullanılıyor: '{topic}'")
+            else:
+                logger.info("📝 Adım 1/5: Konu üretiliyor...")
+                topic = await self._with_healing(
+                    self.content_brain.generate_topic,
+                    heal_id=f"{cycle_id}_topic",
+                )
             result["topic"] = topic
             logger.info(f"✅ Konu: '{topic}'")
 

@@ -74,6 +74,10 @@ RUN if [ ! -f config.toml ] && [ -f config.example.toml ]; then \
 # ── Supervisord config ──────────────────────────────────────
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
+# ── Entrypoint (config.toml kalıcılığı) ─────────────────────
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # ── Expose ports ─────────────────────────────────────────────
 # 8501 = Streamlit WebUI
 # 8080 = FastAPI backend (agent API erişimi)
@@ -88,5 +92,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
     CMD curl -f http://localhost:8501/_stcore/health && \
         curl -f http://localhost:8080/docs || exit 1
 
-# ── Entrypoint: supervisord ─────────────────────────────────
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+# ── Entrypoint: config kalıcılığı → supervisord ─────────────
+CMD ["/entrypoint.sh"]

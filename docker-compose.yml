@@ -79,8 +79,9 @@ services:
     container_name: video-agent
     restart: unless-stopped
 
-    # Agent'ın dış dünyaya port açmasına gerek yok
-    # Tüm iletişim Docker internal network üzerinden
+    # Web kontrol paneli (durum + video yönetimi + manuel tetikleme)
+    expose:
+      - "8090"
 
     depends_on:
       video-generator:
@@ -144,6 +145,16 @@ services:
       - DOCKER_HOST=tcp://docker-socket-proxy:2375
       - HEAL_TARGET_CONTAINER_NAME=${HEAL_TARGET_CONTAINER_NAME:-moneyprinterturbo}
 
+      # ── Depolama / Otomatik Temizlik ──
+      - STORAGE_RETENTION_DAYS=${STORAGE_RETENTION_DAYS:-7}
+      - STORAGE_MAX_STORAGE_GB=${STORAGE_MAX_STORAGE_GB:-0}
+
+      # ── Web Kontrol Paneli ──
+      - PANEL_ENABLED=${PANEL_ENABLED:-true}
+      - PANEL_PORT=8090
+      - PANEL_USERNAME=${PANEL_USERNAME:-admin}
+      - PANEL_PASSWORD=${PANEL_PASSWORD:-}
+
       # ── Agent Genel ──
       - AGENT_HEARTBEAT_INTERVAL_SECONDS=30
       - AGENT_RUN_ON_START=${AGENT_RUN_ON_START:-false}
@@ -158,7 +169,8 @@ services:
       - agent_logs:/agent/logs
 
       # ── Paylaşılan output (video-generator ile ortak) ──
-      - shared_output:/shared_output:ro
+      # rw: agent video listeleme/silme ve otomatik temizlik yapar
+      - shared_output:/shared_output
 
       # NOT: Docker socket artık doğrudan mount EDİLMEZ.
       # Log okuma, salt-okunur docker-socket-proxy üzerinden yapılır.

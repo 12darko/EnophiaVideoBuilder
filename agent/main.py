@@ -114,6 +114,11 @@ async def main() -> None:
         except Exception as e:
             logger.error(f"❌ İlk test üretimi hatası: {e}")
 
+    # ── Kontrol panelini başlat (web arayüzü) ────────────────
+    from core.control_panel import run_panel
+
+    panel_task = asyncio.create_task(run_panel(orchestrator, config))
+
     # ── Scheduler'ı başlat ───────────────────────────────────
     scheduler.start()
 
@@ -137,6 +142,11 @@ async def main() -> None:
     # ── Temiz kapatma ────────────────────────────────────────
     logger.info("🔻 Agent kapatılıyor...")
     scheduler.stop()
+    panel_task.cancel()
+    try:
+        await panel_task
+    except asyncio.CancelledError:
+        pass
     await orchestrator.shutdown()
     logger.info("✅ Agent temiz bir şekilde kapatıldı. Hoşçakalın! 👋")
 

@@ -128,6 +128,33 @@ class NotificationSettings(BaseSettings):
     telegram_chat_id: str = ""
 
 
+class StorageSettings(BaseSettings):
+    """Üretilen video depolama ve temizlik ayarları."""
+
+    model_config = SettingsConfigDict(env_prefix="STORAGE_")
+
+    # Paylaşılan output dizini (video-generator ile ortak volume)
+    shared_output_dir: str = "/shared_output"
+
+    # Bu günden eski videoları otomatik sil (0 = kapalı)
+    retention_days: int = 7
+
+    # Toplam depolama bu sınırı (GB) aşınca en eski videoları sil (0 = kapalı)
+    max_storage_gb: float = 0.0
+
+
+class ControlPanelSettings(BaseSettings):
+    """Web kontrol paneli ayarları."""
+
+    model_config = SettingsConfigDict(env_prefix="PANEL_")
+
+    enabled: bool = True
+    port: int = 8090
+    # Basic auth — şifre boşsa panel salt-okunur açılır (mutasyon kapalı)
+    username: str = "admin"
+    password: str = ""
+
+
 class ContentSettings(BaseSettings):
     """İçerik stratejisi ayarları."""
 
@@ -166,6 +193,8 @@ class AgentConfig(BaseSettings):
     self_healing: SelfHealingSettings = Field(default_factory=SelfHealingSettings)
     notification: NotificationSettings = Field(default_factory=NotificationSettings)
     content: ContentSettings = Field(default_factory=ContentSettings)
+    storage: StorageSettings = Field(default_factory=StorageSettings)
+    control_panel: ControlPanelSettings = Field(default_factory=ControlPanelSettings)
 
     # Agent genel ayarları
     heartbeat_interval_seconds: int = 30

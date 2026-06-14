@@ -75,6 +75,8 @@ Bu sistem iki katmanlı bir mimariyle çalışır:
     │   ├── content_brain.py      # LLM ile içerik üretimi
     │   ├── social_publisher.py   # Sosyal medya yönetim facade
     │   ├── self_healer.py        # Otomatik hata çözme
+    │   ├── storage_manager.py    # Video depolama (listele/sil/temizlik)
+    │   ├── control_panel.py      # Web kontrol paneli (FastAPI, :8090)
     │   └── scheduler.py          # APScheduler zamanlayıcı
     │
     └── publishers/               # Platform adaptörleri
