@@ -83,8 +83,16 @@ services:
     # expose: yalnızca iç Docker ağına açar (internete DEĞİL).
     expose:
       - "8090"
-    # Hermes gibi HOST üzerinde çalışan bir ajanın panele erişmesi için
-    # aşağıdaki satırı aç (sadece 127.0.0.1 — internete kapalı, güvenli):
+    # ── Panele DIŞARIDAN erişim isteyenler için ──────────────
+    # SEÇENEK 1 (Coolify): ai-agent servisine FQDN ekle:
+    #   https://panel.domainin.com:8090   (PANEL_PASSWORD + Basic Auth ŞART)
+    #
+    # SEÇENEK 2 (sunucu IP'sinden tarayıcıyla): aşağıyı aç → http://SUNUCU_IP:8090
+    #   ⚠️ Önce mutlaka PANEL_PASSWORD koy (yoksa herkese açık olur)!
+    # ports:
+    #   - "8090:8090"
+    #
+    # SEÇENEK 3 (sadece host'taki Hermes erişsin, internete kapalı):
     # ports:
     #   - "127.0.0.1:8090:8090"
 

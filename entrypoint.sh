@@ -22,7 +22,12 @@ if [ ! -f "$PERSIST_DIR/config.toml" ]; then
     else
         touch "$PERSIST_DIR/config.toml"
     fi
-    echo "[entrypoint] Kalıcı config.toml oluşturuldu: $PERSIST_DIR/config.toml"
+    echo "[entrypoint] ILK KURULUM: kalici config.toml olusturuldu (henuz API yok)."
+    echo "[entrypoint] UI'dan key girince burada kalici olacak."
+else
+    # Kalıcılık çalışıyor — mevcut config korunuyor
+    _sz=$(wc -c < "$PERSIST_DIR/config.toml" 2>/dev/null || echo 0)
+    echo "[entrypoint] MEVCUT kalici config.toml bulundu (${_sz} byte) - API'ler korunuyor."
 fi
 
 # config.toml -> kalıcı dosyaya symlink (MPT kök yoldan okur)
