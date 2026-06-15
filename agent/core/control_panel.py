@@ -66,6 +66,11 @@ def create_app(orchestrator: Any, config: AgentConfig) -> Any:
     async def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
+    # ── Giriş doğrulama (login formu için) ───────────────────
+    @app.get("/api/auth/check")
+    async def auth_check(_: bool = Depends(require_auth)) -> dict[str, Any]:
+        return {"ok": True, "username": panel_cfg.username}
+
     # ── Sosyal hesaplar (oku) ────────────────────────────────
     @app.get("/api/social")
     async def get_social() -> dict[str, Any]:
@@ -249,9 +254,21 @@ _DASHBOARD_HTML = """<!doctype html>
  .badge{font-size:12px;padding:2px 8px;border-radius:6px;margin-left:8px}
  .on{background:#14532d;color:#bbf7d0}
  .off{background:#7f1d1d;color:#fecaca}
+ .logincard{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+ .logincard input{width:auto;max-width:180px}
 </style></head><body>
 <header>🎯 Video Fabrikası — Hermes & Hesaplar & Videolar</header>
 <main>
+ <div class="card logincard">
+   <span id="authState" class="muted">🔒 Oturum: giriş yapılmadı</span>
+   <button id="loginBtn" onclick="toggleLogin()">🔐 Giriş Yap</button>
+   <span id="loginForm" style="display:none">
+     <input type="text" id="loginUser" placeholder="Kullanıcı adı" value="admin">
+     <input type="password" id="loginPass" placeholder="Şifre" onkeydown="if(event.key==='Enter')doLogin()">
+     <button onclick="doLogin()">Giriş</button>
+     <span id="loginMsg" class="muted"></span>
+   </span>
+ </div>
  <div class="card">
    <h3>🤖 Hermes ile Sohbet <span id="hbadge" class="badge off">bağlı değil</span></h3>
    <p class="muted">"Şu konuda video üret", "bunu YouTube'a yolla", "eski videoları sil" gibi yaz. Hermes MoneyPrinterTurbo'yu ve bu paneli kontrol eder.</p>
@@ -306,6 +323,51 @@ const SECRET_IDS=['instagram_password','youtube_client_secret','youtube_refresh_
 let readOnly=false;
 let chatHistory=[];
 let hermesOn=false;
+let authHeader=null;
+
+// ── Giriş / oturum ──────────────────────────────────────────
+function hdrs(json){const h={};if(json)h['Content-Type']='application/json';if(authHeader)h['Authorization']=authHeader;return h;}
+function toggleLogin(){const f=document.getElementById('loginForm');f.style.display=(f.style.display==='none'?'inline':'none');if(f.style.display!=='none')document.getElementById('loginPass').focus();}
+function setLoggedIn(user){
+ authHeader&&sessionStorage.setItem('auth',authHeader);
+ document.getElementById('authState').textContent='🔓 Oturum: '+(user||'giriş yapıldı');
+ document.getElementById('loginForm').style.display='none';
+ const b=document.getElementById('loginBtn');b.textContent='Çıkış';b.setAttribute('onclick','doLogout()');
+}
+function doLogout(){
+ authHeader=null;sessionStorage.removeItem('auth');
+ document.getElementById('authState').textContent='🔒 Oturum: giriş yapılmadı';
+ const b=document.getElementById('loginBtn');b.textContent='🔐 Giriş Yap';b.setAttribute('onclick','toggleLogin()');
+}
+async function doLogin(){
+ const u=document.getElementById('loginUser').value.trim();
+ const p=document.getElementById('loginPass').value;
+ const m=document.getElementById('loginMsg');
+ const hdr='Basic '+btoa(unescape(encodeURIComponent(u+':'+p)));
+ m.textContent='Kontrol ediliyor...';
+ try{
+   const r=await fetch('./api/auth/check',{headers:{'Authorization':hdr}});
+   if(r.ok){authHeader=hdr;m.textContent='';document.getElementById('loginPass').value='';setLoggedIn(u);}
+   else if(r.status===403){m.textContent='❌ Sunucuda PANEL_PASSWORD ayarlı değil';}
+   else{m.textContent='❌ Hatalı kullanıcı adı/şifre';}
+ }catch(e){m.textContent='❌ Bağlantı hatası';}
+}
+function needLogin(){
+ if(authHeader)return false;
+ document.getElementById('loginForm').style.display='inline';
+ document.getElementById('loginMsg').textContent='⚠️ Önce giriş yapın';
+ document.getElementById('loginPass').focus();
+ return true;
+}
+async function restoreAuth(){
+ const saved=sessionStorage.getItem('auth');
+ if(!saved)return;
+ try{
+   const r=await fetch('./api/auth/check',{headers:{'Authorization':saved}});
+   if(r.ok){authHeader=saved;const j=await r.json();setLoggedIn(j.username);}
+   else{sessionStorage.removeItem('auth');}
+ }catch(e){}
+}
 
 function addMsg(role,text){
  const log=document.getElementById('chatlog');
@@ -333,13 +395,14 @@ async function chatStatus(){
 async function sendChat(){
  const inp=document.getElementById('chatInput');
  const text=inp.value.trim();if(!text||!hermesOn)return;
+ if(needLogin())return;
  inp.value='';addMsg('user',text);
  chatHistory.push({role:'user',content:text});
  const btn=document.getElementById('chatSend');btn.disabled=true;
  addMsg('bot','...');
  const log=document.getElementById('chatlog');const ph=log.lastChild;
  try{
-   const r=await fetch('./api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+   const r=await fetch('./api/chat',{method:'POST',headers:hdrs(true),
      body:JSON.stringify({message:text,history:chatHistory})});
    const j=await r.json();
    if(r.ok){ph.textContent=j.reply;chatHistory.push({role:'assistant',content:j.reply});}
@@ -364,6 +427,7 @@ async function loadSocial(){
 
 async function saveSocial(){
  const m=document.getElementById('msg');
+ if(needLogin()){m.textContent='⚠️ Önce giriş yapın';return;}
  const enabled=[];
  if(document.getElementById('p_youtube').checked)enabled.push('youtube');
  if(document.getElementById('p_instagram').checked)enabled.push('instagram');
@@ -377,7 +441,7 @@ async function saveSocial(){
    body[id]=v;
  });
  m.textContent='Kaydediliyor...';
- const r=await fetch('./api/social',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+ const r=await fetch('./api/social',{method:'POST',headers:hdrs(true),body:JSON.stringify(body)});
  if(r.ok){const j=await r.json();m.textContent='✅ Kaydedildi — aktif: '+(j.active_platforms.join(', ')||'yok');loadSocial();}
  else{m.textContent='❌ '+((await r.json()).detail||'Hata');}
 }
@@ -393,11 +457,12 @@ async function loadVideos(){
 }
 
 async function del(id){
+ if(needLogin()){alert('Önce 🔐 Giriş Yap');return;}
  if(!confirm(id+' silinsin mi?'))return;
- const r=await fetch('./api/videos/'+id,{method:'DELETE'});
+ const r=await fetch('./api/videos/'+id,{method:'DELETE',headers:hdrs()});
  if(r.ok){loadVideos();}else{alert('Silinemedi: '+((await r.json()).detail||''));}
 }
 
-chatStatus();loadSocial();loadVideos();setInterval(loadVideos,15000);
+restoreAuth();chatStatus();loadSocial();loadVideos();setInterval(loadVideos,15000);
 </script>
 </body></html>"""
