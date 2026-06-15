@@ -87,10 +87,11 @@ RUN chmod +x /entrypoint.sh
 # Streamlit UI'ını bozma riski vardı. Panele kendi URL'siyle erişilir.
 
 # ── Expose ports ─────────────────────────────────────────────
-# 8080 = Streamlit WebUI (PUBLIC — Coolify domaini buraya yönlenir)
-# 8081 = FastAPI backend (sadece iç ağ — ai-agent erişimi)
+# SADECE 8080 expose edilir (Streamlit UI) — Coolify tek port görsün,
+# port belirsizliği/round-robin olmasın. FastAPI 8081'de çalışır ama
+# expose EDİLMEZ; ai-agent yine iç ağdan (video-generator:8081) erişir
+# (Docker'da aynı ağdaki servisler expose olmadan da birbirine ulaşır).
 EXPOSE 8080
-EXPOSE 8081
 
 # ── Healthcheck ──────────────────────────────────────────────
 # NOT: FastAPI'nin kök route'u (/) 404 döner; bu yüzden /docs kullanılır.
