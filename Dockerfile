@@ -26,6 +26,7 @@ RUN apt-get update && \
         curl \
         ca-certificates \
         supervisor \
+        socat \
     && fc-cache -fv \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
@@ -87,11 +88,11 @@ RUN chmod +x /entrypoint.sh
 # Streamlit UI'ını bozma riski vardı. Panele kendi URL'siyle erişilir.
 
 # ── Expose ports ─────────────────────────────────────────────
-# SADECE 8080 expose edilir (Streamlit UI) — Coolify tek port görsün,
-# port belirsizliği/round-robin olmasın. FastAPI 8081'de çalışır ama
-# expose EDİLMEZ; ai-agent yine iç ağdan (video-generator:8081) erişir
-# (Docker'da aynı ağdaki servisler expose olmadan da birbirine ulaşır).
+# Streamlit UI 8080'de. Coolify router'ı eski kurulumdan 8501'e de takılı
+# kalabildiği için socat ile 8501→8080 köprüsü kuruyoruz; ikisi de UI'a gider.
+# FastAPI 8081'de çalışır ama expose EDİLMEZ (ai-agent iç ağdan erişir).
 EXPOSE 8080
+EXPOSE 8501
 
 # ── Healthcheck ──────────────────────────────────────────────
 # NOT: FastAPI'nin kök route'u (/) 404 döner; bu yüzden /docs kullanılır.

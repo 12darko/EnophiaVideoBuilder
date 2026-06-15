@@ -17,11 +17,12 @@ services:
     container_name: moneyprinterturbo
     restart: unless-stopped
 
-    # ÖNEMLİ: Coolify domaini 8080'e yönlendiriyor (kendi DB kaydı). Bu yüzden
-    # Streamlit UI'ı 8080'e koyduk; domain → 8080 → Streamlit olur.
-    # FastAPI 8081'e taşındı (sadece iç ağ, ai-agent kullanır).
+    # Streamlit UI 8080'de. Coolify router'ı 8080 veya 8501'e yönlendirebildiği
+    # için ikisini de açıyoruz; 8501 socat ile 8080'e köprüleniyor (her ikisi
+    # de UI'a gider). FastAPI 8081'de ama expose EDİLMEZ (iç ağdan erişilir).
     expose:
       - "8080"
+      - "8501"
 
     environment:
       - STREAMLIT_SERVER_PORT=8501
