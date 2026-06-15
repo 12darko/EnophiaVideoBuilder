@@ -29,8 +29,29 @@ class SocialPublisher:
 
     def __init__(self, config: AgentConfig) -> None:
         self.config = config
+        from core.social_store import SocialStore
+
+        self.store = SocialStore(config)
         self._publishers: dict[str, BasePublisher] = {}
+        self._apply_and_init()
+
+    def _apply_and_init(self) -> None:
+        """UI'dan kaydedilen hesap bilgilerini config'e uygula, publisher'ları kur."""
+        eff = self.store.effective()
+        sm = self.config.social_media
+        sm.instagram_username = eff["instagram_username"]
+        sm.instagram_password = eff["instagram_password"]
+        sm.youtube_client_id = eff["youtube_client_id"]
+        sm.youtube_client_secret = eff["youtube_client_secret"]
+        sm.youtube_refresh_token = eff["youtube_refresh_token"]
+        sm.tiktok_session_cookie = eff["tiktok_session_cookie"]
+        sm.enabled_platforms = ",".join(eff["enabled_platforms"])
+        self._publishers = {}
         self._init_publishers()
+
+    def refresh(self) -> None:
+        """Panelden hesap güncellenince publisher'ları yeniden kur."""
+        self._apply_and_init()
 
     def _init_publishers(self) -> None:
         """Aktif platform publisher'larını başlat."""
