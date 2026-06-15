@@ -86,6 +86,70 @@ def create_app(orchestrator: Any, config: AgentConfig) -> Any:
         logger.info(f"💾 Sosyal hesaplar güncellendi → aktif: {active or 'Yok'}")
         return {"saved": True, "active_platforms": active}
 
+    # ── Hermes sohbeti ───────────────────────────────────────
+    @app.get("/api/chat/status")
+    async def chat_status() -> dict[str, Any]:
+        h = config.hermes
+        return {"enabled": bool(h.enabled and h.api_key), "model": h.model}
+
+    @app.post("/api/chat")
+    async def chat(
+        payload: dict[str, Any], _: bool = Depends(require_auth)
+    ) -> dict[str, Any]:
+        h = config.hermes
+        if not (h.enabled and h.api_key):
+            raise HTTPException(
+                status_code=503,
+                detail="Hermes bağlı değil (HERMES_ENABLED / HERMES_API_KEY ayarlayın)",
+            )
+        message = (payload.get("message") or "").strip()
+        if not message:
+            raise HTTPException(status_code=400, detail="Boş mesaj")
+        history = payload.get("history") or []
+
+        # Hermes'e sistemimizi tanıtan kısa yönerge
+        system = (
+            "Sen bu video fabrikasının asistanısın. Kullanıcı Türkçe konuşur. "
+            "MoneyPrinterTurbo video API'si: "
+            f"{config.video_generator.api_base_url} "
+            "(POST /api/v1/videos ile video üret, GET /api/v1/tasks/{id} ile durum). "
+            "Yönetim paneli API'si: http://localhost:"
+            f"{config.control_panel.port} "
+            "(/api/social hesaplar, /api/videos liste/sil). "
+            "Sunucu ayarını değiştirmeden veya dosya silmeden önce kullanıcıya sor."
+        )
+        messages = [{"role": "system", "content": system}]
+        for m in history[-10:]:
+            role = m.get("role")
+            content = m.get("content")
+            if role in ("user", "assistant") and content:
+                messages.append({"role": role, "content": str(content)})
+        messages.append({"role": "user", "content": message})
+
+        import httpx
+
+        try:
+            async with httpx.AsyncClient(timeout=h.timeout) as client:
+                resp = await client.post(
+                    h.api_url,
+                    headers={"Authorization": f"Bearer {h.api_key}"},
+                    json={"model": h.model, "messages": messages},
+                )
+                resp.raise_for_status()
+                data = resp.json()
+            reply = data["choices"][0]["message"]["content"]
+        except httpx.HTTPStatusError as e:
+            logger.error(f"❌ Hermes API hatası: {e.response.status_code}")
+            raise HTTPException(
+                status_code=502, detail=f"Hermes hatası: {e.response.status_code}"
+            )
+        except Exception as e:
+            logger.error(f"❌ Hermes'e ulaşılamadı: {e!r}")
+            raise HTTPException(
+                status_code=502, detail="Hermes'e ulaşılamadı (API server çalışıyor mu?)"
+            )
+        return {"reply": reply}
+
     # ── Videolar ─────────────────────────────────────────────
     @app.get("/api/videos")
     async def list_videos() -> list[dict[str, Any]]:
@@ -176,9 +240,27 @@ _DASHBOARD_HTML = """<!doctype html>
  .ro{background:#7f1d1d;color:#fecaca;padding:8px 12px;border-radius:8px;font-size:13px;margin-bottom:12px;display:none}
  fieldset{border:1px solid #334155;border-radius:8px;margin:14px 0;padding:12px 14px}
  legend{padding:0 6px;color:#a5b4fc;font-size:13px}
+ #chatlog{background:#0b1220;border:1px solid #334155;border-radius:8px;padding:12px;height:280px;overflow-y:auto;margin-bottom:10px}
+ .msg{margin:6px 0;padding:8px 12px;border-radius:10px;max-width:85%;white-space:pre-wrap;line-height:1.4}
+ .me{background:#3730a3;margin-left:auto}
+ .bot{background:#334155}
+ .chatrow{display:flex;gap:8px}
+ .chatrow input{flex:1}
+ .badge{font-size:12px;padding:2px 8px;border-radius:6px;margin-left:8px}
+ .on{background:#14532d;color:#bbf7d0}
+ .off{background:#7f1d1d;color:#fecaca}
 </style></head><body>
-<header>🎯 Video Fabrikası — Hesaplar & Videolar</header>
+<header>🎯 Video Fabrikası — Hermes & Hesaplar & Videolar</header>
 <main>
+ <div class="card">
+   <h3>🤖 Hermes ile Sohbet <span id="hbadge" class="badge off">bağlı değil</span></h3>
+   <p class="muted">"Şu konuda video üret", "bunu YouTube'a yolla", "eski videoları sil" gibi yaz. Hermes MoneyPrinterTurbo'yu ve bu paneli kontrol eder.</p>
+   <div id="chatlog"></div>
+   <div class="chatrow">
+     <input type="text" id="chatInput" placeholder="Hermes'e yaz..." onkeydown="if(event.key==='Enter')sendChat()">
+     <button id="chatSend" onclick="sendChat()">Gönder</button>
+   </div>
+ </div>
  <div class="card">
    <div id="ro" class="ro">⚠️ Salt-okunur mod: PANEL_PASSWORD ayarlanmadığı için kaydetme kapalı.</div>
    <h3>📲 Sosyal Hesaplar</h3>
@@ -222,6 +304,49 @@ _DASHBOARD_HTML = """<!doctype html>
 <script>
 const SECRET_IDS=['instagram_password','youtube_client_secret','youtube_refresh_token','tiktok_session_cookie'];
 let readOnly=false;
+let chatHistory=[];
+let hermesOn=false;
+
+function addMsg(role,text){
+ const log=document.getElementById('chatlog');
+ const d=document.createElement('div');
+ d.className='msg '+(role==='user'?'me':'bot');
+ d.textContent=text;
+ log.appendChild(d);log.scrollTop=log.scrollHeight;
+}
+
+async function chatStatus(){
+ try{
+   const s=await (await fetch('./api/chat/status')).json();
+   hermesOn=!!s.enabled;
+ }catch(e){hermesOn=false;}
+ const b=document.getElementById('hbadge');
+ b.textContent=hermesOn?'bağlı':'bağlı değil';
+ b.className='badge '+(hermesOn?'on':'off');
+ document.getElementById('chatInput').disabled=!hermesOn;
+ document.getElementById('chatSend').disabled=!hermesOn;
+ if(!hermesOn&&!document.getElementById('chatlog').children.length){
+   addMsg('bot','Hermes henüz bağlı değil. Sunucuda Hermes API server\\'ı açıp HERMES_ENABLED=true + HERMES_API_KEY ayarlayın.');
+ }
+}
+
+async function sendChat(){
+ const inp=document.getElementById('chatInput');
+ const text=inp.value.trim();if(!text||!hermesOn)return;
+ inp.value='';addMsg('user',text);
+ chatHistory.push({role:'user',content:text});
+ const btn=document.getElementById('chatSend');btn.disabled=true;
+ addMsg('bot','...');
+ const log=document.getElementById('chatlog');const ph=log.lastChild;
+ try{
+   const r=await fetch('./api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({message:text,history:chatHistory})});
+   const j=await r.json();
+   if(r.ok){ph.textContent=j.reply;chatHistory.push({role:'assistant',content:j.reply});}
+   else{ph.textContent='❌ '+(j.detail||'Hata');}
+ }catch(e){ph.textContent='❌ Bağlantı hatası';}
+ btn.disabled=false;inp.focus();
+}
 
 async function loadSocial(){
  const d=await (await fetch('./api/social')).json();
@@ -273,6 +398,6 @@ async function del(id){
  if(r.ok){loadVideos();}else{alert('Silinemedi: '+((await r.json()).detail||''));}
 }
 
-loadSocial();loadVideos();setInterval(loadVideos,15000);
+chatStatus();loadSocial();loadVideos();setInterval(loadVideos,15000);
 </script>
 </body></html>"""

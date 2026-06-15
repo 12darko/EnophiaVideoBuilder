@@ -155,6 +155,24 @@ class ControlPanelSettings(BaseSettings):
     password: str = ""
 
 
+class HermesSettings(BaseSettings):
+    """Hermes ajanı (Nous Research) bağlantı ayarları.
+
+    Hermes host'ta çalışır ve OpenAI-uyumlu bir API server açar
+    (/v1/chat/completions). Panel chat kutusu buraya proxy'ler.
+    """
+
+    model_config = SettingsConfigDict(env_prefix="HERMES_")
+
+    enabled: bool = False
+    # Host'taki Hermes API server. Container'dan host'a erişim için
+    # host.docker.internal kullanılır (compose'da extra_hosts ile map'lenir).
+    api_url: str = "http://host.docker.internal:8642/v1/chat/completions"
+    api_key: str = ""  # Hermes API_SERVER_KEY ile aynı olmalı
+    model: str = "hermes-agent"
+    timeout: int = 120
+
+
 class ContentSettings(BaseSettings):
     """İçerik stratejisi ayarları."""
 
@@ -195,6 +213,7 @@ class AgentConfig(BaseSettings):
     content: ContentSettings = Field(default_factory=ContentSettings)
     storage: StorageSettings = Field(default_factory=StorageSettings)
     control_panel: ControlPanelSettings = Field(default_factory=ControlPanelSettings)
+    hermes: HermesSettings = Field(default_factory=HermesSettings)
 
     # Agent genel ayarları
     heartbeat_interval_seconds: int = 30

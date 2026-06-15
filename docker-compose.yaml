@@ -120,6 +120,11 @@ services:
       docker-socket-proxy:
         condition: service_started
 
+    # Container'dan host'a (Hermes API server) erişim için.
+    # Linux'ta host.docker.internal'i host ağ geçidine map'ler.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
     environment:
       # ── Video Generator bağlantısı ──
       - VG_API_BASE_URL=http://video-generator:8080
@@ -185,6 +190,14 @@ services:
       - PANEL_PORT=8090
       - PANEL_USERNAME=${PANEL_USERNAME:-admin}
       - PANEL_PASSWORD=${PANEL_PASSWORD:-}
+
+      # ── Hermes Sohbeti (panel chat → host'taki Hermes API server) ──
+      # Host'ta: hermes .env'ine API_SERVER_ENABLED=true, API_SERVER_HOST=0.0.0.0,
+      # API_SERVER_KEY=<sifre> yazıp `hermes gateway` çalıştır.
+      - HERMES_ENABLED=${HERMES_ENABLED:-false}
+      - HERMES_API_URL=${HERMES_API_URL:-http://host.docker.internal:8642/v1/chat/completions}
+      - HERMES_API_KEY=${HERMES_API_KEY:-}
+      - HERMES_MODEL=${HERMES_MODEL:-hermes-agent}
 
       # ── Agent Genel ──
       - AGENT_HEARTBEAT_INTERVAL_SECONDS=30
