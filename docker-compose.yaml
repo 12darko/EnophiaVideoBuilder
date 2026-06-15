@@ -17,10 +17,14 @@ services:
     container_name: moneyprinterturbo
     restart: unless-stopped
 
-    # Coolify Traefik üzerinden bu porta yönlendirme yapar
+    # ÖNEMLİ: Coolify/Traefik tek domain'e birden fazla expose'lu portu
+    # bağlayınca istekleri portlar arasında round-robin dağıtır; Streamlit'in
+    # /_stcore/* (health, WebSocket) istekleri FastAPI'ye (8080) düşüp 404 olur
+    # ve UI kopar. Bu yüzden DIŞARI sadece Streamlit portunu (8501) açıyoruz.
+    # FastAPI (8080) yine container içi ağdan (ai-agent) erişilebilir —
+    # Docker'da aynı ağdaki servisler expose olmadan da birbirine ulaşır.
     expose:
       - "8501"
-      - "8080"
 
     environment:
       - STREAMLIT_SERVER_PORT=8501

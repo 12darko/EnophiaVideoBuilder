@@ -95,7 +95,39 @@ def create_app(orchestrator: Any, config: AgentConfig) -> Any:
     @app.get("/api/chat/status")
     async def chat_status() -> dict[str, Any]:
         h = config.hermes
-        return {"enabled": bool(h.enabled and h.api_key), "model": h.model}
+        configured = bool(h.enabled and h.api_key)
+        out: dict[str, Any] = {
+            "enabled": configured,
+            "model": h.model,
+            "flag": bool(h.enabled),
+            "has_key": bool(h.api_key),
+            "reachable": False,
+        }
+        if not configured:
+            out["detail"] = (
+                "HERMES_ENABLED=true değil" if not h.enabled
+                else "HERMES_API_KEY boş"
+            )
+            return out
+
+        # Gerçek erişim testi: Hermes API server ayakta + anahtar doğru mu?
+        import httpx
+
+        models_url = h.api_url.replace("/chat/completions", "/models")
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                r = await client.get(
+                    models_url, headers={"Authorization": f"Bearer {h.api_key}"}
+                )
+            if r.status_code == 401:
+                out["detail"] = "API anahtarı yanlış (401) — iki taraf aynı mı?"
+            elif r.status_code >= 500:
+                out["detail"] = f"Hermes hata döndü ({r.status_code})"
+            else:
+                out["reachable"] = True
+        except Exception:
+            out["detail"] = "Hermes'e ulaşılamıyor (gateway çalışıyor mu?)"
+        return out
 
     @app.post("/api/chat")
     async def chat(
@@ -378,17 +410,20 @@ function addMsg(role,text){
 }
 
 async function chatStatus(){
- try{
-   const s=await (await fetch('./api/chat/status')).json();
-   hermesOn=!!s.enabled;
- }catch(e){hermesOn=false;}
+ let s={};
+ try{s=await (await fetch('./api/chat/status')).json();}catch(e){s={};}
+ const configured=!!s.enabled;       // env ayarlı mı
+ const reachable=!!s.reachable;      // Hermes'e gerçekten ulaşılıyor mu
+ hermesOn=configured&&reachable;
  const b=document.getElementById('hbadge');
- b.textContent=hermesOn?'bağlı':'bağlı değil';
- b.className='badge '+(hermesOn?'on':'off');
+ if(hermesOn){b.textContent='bağlı';b.className='badge on';}
+ else if(configured){b.textContent='ulaşılamıyor';b.className='badge off';}
+ else{b.textContent='bağlı değil';b.className='badge off';}
  document.getElementById('chatInput').disabled=!hermesOn;
  document.getElementById('chatSend').disabled=!hermesOn;
- if(!hermesOn&&!document.getElementById('chatlog').children.length){
-   addMsg('bot','Hermes henüz bağlı değil. Sunucuda Hermes API server\\'ı açıp HERMES_ENABLED=true + HERMES_API_KEY ayarlayın.');
+ if(!hermesOn&&s.detail){
+   const log=document.getElementById('chatlog');
+   if(!log.dataset.note){addMsg('bot','⚠️ '+s.detail);log.dataset.note='1';}
  }
 }
 

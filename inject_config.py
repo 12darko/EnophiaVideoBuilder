@@ -23,12 +23,18 @@ VIDEO_KEYS = {
     "COVERR_API_KEY": "coverr_api_keys",
 }
 
-# provider -> (env_var, api_key_field, model_field, default_model)
+# provider -> (env_var, api_key_field, model_field, default_model,
+#              base_url_field|None, default_base_url|None)
 LLM_PROVIDERS = {
-    "gemini": ("GEMINI_API_KEY", "gemini_api_key", "gemini_model_name", "gemini-2.0-flash"),
-    "groq": ("GROQ_API_KEY", "groq_api_key", "groq_model_name", "llama-3.3-70b-versatile"),
-    "openai": ("OPENAI_API_KEY", "openai_api_key", "openai_model_name", "gpt-4o-mini"),
-    "deepseek": ("DEEPSEEK_API_KEY", "deepseek_api_key", "deepseek_model_name", "deepseek-chat"),
+    "gemini": ("GEMINI_API_KEY", "gemini_api_key", "gemini_model_name",
+               "gemini-2.0-flash", None, None),
+    "groq": ("GROQ_API_KEY", "groq_api_key", "groq_model_name",
+             "llama-3.3-70b-versatile", "groq_base_url",
+             "https://api.groq.com/openai/v1"),
+    "openai": ("OPENAI_API_KEY", "openai_api_key", "openai_model_name",
+               "gpt-4o-mini", "openai_base_url", "https://api.openai.com/v1"),
+    "deepseek": ("DEEPSEEK_API_KEY", "deepseek_api_key", "deepseek_model_name",
+                 "deepseek-chat", "deepseek_base_url", "https://api.deepseek.com"),
 }
 
 
@@ -64,12 +70,15 @@ def main() -> None:
 
     # ── LLM sağlayıcılar ─────────────────────────────────────
     provided = []
-    for prov, (env, akey, mkey, defmodel) in LLM_PROVIDERS.items():
+    for prov, (env, akey, mkey, defmodel, bkey, defbase) in LLM_PROVIDERS.items():
         val = os.environ.get(env, "").strip()
         if val:
             app[akey] = val
             model = os.environ.get(f"{prov.upper()}_MODEL_NAME", "").strip() or defmodel
             app.setdefault(mkey, model)
+            if bkey:
+                base = os.environ.get(f"{prov.upper()}_BASE_URL", "").strip() or defbase
+                app.setdefault(bkey, base)
             provided.append(prov)
             applied.append(env.lower())
 
