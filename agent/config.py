@@ -19,9 +19,10 @@ class VideoGeneratorSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="VG_")
 
     # Video generator servisinin Docker internal adresi
-    api_base_url: str = "http://video-generator:8080"
+    # NOT: Streamlit UI 8080'de (public), FastAPI 8081'de (iç ağ).
+    api_base_url: str = "http://video-generator:8081"
     api_timeout: int = 600  # 10 dakika (video render uzun sürebilir)
-    health_check_url: str = "http://video-generator:8501/_stcore/health"
+    health_check_url: str = "http://video-generator:8080/_stcore/health"
 
     # Varsayılan video parametreleri
     default_aspect: str = "9:16"  # portrait (shorts/reels)

@@ -87,18 +87,18 @@ RUN chmod +x /entrypoint.sh
 # Streamlit UI'ını bozma riski vardı. Panele kendi URL'siyle erişilir.
 
 # ── Expose ports ─────────────────────────────────────────────
-# 8501 = Streamlit WebUI
-# 8080 = FastAPI backend (agent API erişimi)
-EXPOSE 8501
+# 8080 = Streamlit WebUI (PUBLIC — Coolify domaini buraya yönlenir)
+# 8081 = FastAPI backend (sadece iç ağ — ai-agent erişimi)
 EXPOSE 8080
+EXPOSE 8081
 
 # ── Healthcheck ──────────────────────────────────────────────
 # NOT: FastAPI'nin kök route'u (/) 404 döner; bu yüzden /docs kullanılır.
 # Aksi halde healthcheck unhealthy olur ve ai-agent (depends_on:
 # service_healthy) hiç başlamaz.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
-    CMD curl -f http://localhost:8501/_stcore/health && \
-        curl -f http://localhost:8080/docs || exit 1
+    CMD curl -f http://localhost:8080/_stcore/health && \
+        curl -f http://localhost:8081/docs || exit 1
 
 # ── Entrypoint: config kalıcılığı → supervisord ─────────────
 CMD ["/entrypoint.sh"]

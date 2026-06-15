@@ -17,14 +17,11 @@ services:
     container_name: moneyprinterturbo
     restart: unless-stopped
 
-    # ÖNEMLİ: Coolify/Traefik tek domain'e birden fazla expose'lu portu
-    # bağlayınca istekleri portlar arasında round-robin dağıtır; Streamlit'in
-    # /_stcore/* (health, WebSocket) istekleri FastAPI'ye (8080) düşüp 404 olur
-    # ve UI kopar. Bu yüzden DIŞARI sadece Streamlit portunu (8501) açıyoruz.
-    # FastAPI (8080) yine container içi ağdan (ai-agent) erişilebilir —
-    # Docker'da aynı ağdaki servisler expose olmadan da birbirine ulaşır.
+    # ÖNEMLİ: Coolify domaini 8080'e yönlendiriyor (kendi DB kaydı). Bu yüzden
+    # Streamlit UI'ı 8080'e koyduk; domain → 8080 → Streamlit olur.
+    # FastAPI 8081'e taşındı (sadece iç ağ, ai-agent kullanır).
     expose:
-      - "8501"
+      - "8080"
 
     environment:
       - STREAMLIT_SERVER_PORT=8501
@@ -78,7 +75,7 @@ services:
           cpus: "1.0"
 
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/_stcore/health"]
       interval: 30s
       timeout: 10s
       start_period: 120s
@@ -131,8 +128,9 @@ services:
 
     environment:
       # ── Video Generator bağlantısı ──
-      - VG_API_BASE_URL=http://video-generator:8080
-      - VG_HEALTH_CHECK_URL=http://video-generator:8501/_stcore/health
+      # FastAPI 8081'e taşındı (8080'i Streamlit UI aldı, Coolify oraya yönlendiriyor)
+      - VG_API_BASE_URL=http://video-generator:8081
+      - VG_HEALTH_CHECK_URL=http://video-generator:8080/_stcore/health
       - VG_API_TIMEOUT=600
       - VG_DEFAULT_ASPECT=9:16
       - VG_DEFAULT_VOICE=tr-TR-EmelNeural
