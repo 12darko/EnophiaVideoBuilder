@@ -165,9 +165,8 @@ class HermesSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="HERMES_")
 
     enabled: bool = False
-    # Host'taki Hermes API server. Container'dan host'a erişim için
-    # host.docker.internal kullanılır (compose'da extra_hosts ile map'lenir).
-    api_url: str = "http://host.docker.internal:8642/v1/chat/completions"
+    # Hermes compose servisi (aynı Docker ağı). Panel container adıyla erişir.
+    api_url: str = "http://hermes:8642/v1/chat/completions"
     api_key: str = ""  # Hermes API_SERVER_KEY ile aynı olmalı
     model: str = "hermes-agent"
     timeout: int = 120
